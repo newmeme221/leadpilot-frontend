@@ -27,14 +27,14 @@ export function Sidebar() {
   const navigate = useNavigate();
   useEffect(() => {
     if (!user) {
-      navigate("/auth");
+      navigate("/");
     }
   }, [user, navigate]);
   // ...existing code...
   const handleLogout = () => {
     localStorage.removeItem("access_token");
-    // window.location.reload(); // force user state update
-    navigate("/auth");
+    window.location.reload(); // force user state update
+    navigate("/");
   };
   
   const { data: usage } = useQuery<{tier: string, current_usage: number, limit: number, remaining: number}>({
