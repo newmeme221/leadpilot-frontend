@@ -31,6 +31,7 @@ type AuthContextType = {
   error: Error | null;
   loginMutation: UseMutationResult<SelectUser, Error, LoginData>;
   registerMutation: UseMutationResult<SelectUser, Error, InsertUser>;
+  logout: () => Promise<void>;
 };
 
 // Use undefined as initial value instead of null for stricter typing
@@ -97,6 +98,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
+  // ✅ Add logout handler
+  const logout = async () => {
+    try {
+      localStorage.removeItem("access_token");
+      queryClient.removeQueries({ queryKey: [`${apiUrl}/user`] });
+      await refetchUser(); // Ensures user is null
+      toast({
+        title: "Logged out",
+        description: "You have been logged out successfully.",
+        variant: "default",
+      });
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: "Logout failed",
+        description: "An error occurred during logout.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -105,6 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         error,
         loginMutation,
         registerMutation,
+        logout,
       }}
     >
       {children}

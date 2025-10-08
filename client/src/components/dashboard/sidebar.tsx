@@ -23,7 +23,8 @@ const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 export function Sidebar() {
   const [location] = useLocation();
-  const { user } = useAuth();
+  const { user } = useAuth(); 
+  const {logout} = useAuth();
   const navigate = useNavigate();
   useEffect(() => {
     if (!user) {
@@ -32,11 +33,10 @@ export function Sidebar() {
   }, [user, navigate]);
   // ...existing code...
   const handleLogout = () => {
-    localStorage.removeItem("access_token");
-    window.location.reload(); // force user state update
+    logout(); 
     navigate("/auth");
   };
-  
+
   const { data: usage } = useQuery<{tier: string, current_usage: number, limit: number, remaining: number}>({
     queryKey: ["usage-widget"],
     queryFn: async () => {
