@@ -27,6 +27,7 @@ interface Usage {
   limit: number;
   tier: string;
   remaining: number;
+  percentage_used: number;
 }
 
 const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000";
@@ -36,31 +37,74 @@ export default function Pricing() {
   const [location] = useLocation();
   const queryClient = useQueryClient();
   const [loading, setLoading] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState(false);
 
-  // Toast for payment status
+  // Handle payment redirect and verification
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const success = urlParams.get('success');
-    const cancel = urlParams.get('cancel');
-    
-    if (success === 'true') {
-      toast({
-        title: "Payment Successful",
-        description: "Your subscription is now active!",
-        variant: "default",
-      });
-      // Clean up URL parameters
-      window.history.replaceState({}, document.title, window.location.pathname);
-    } else if (cancel === 'true') {
-      toast({
-        title: "Payment Cancelled",
-        description: "Your payment was cancelled. Please try again.",
-        variant: "destructive",
-      });
+    const redirect = urlParams.get('redirect');
+    const txRef = urlParams.get('tx_ref');
+    const transactionId = urlParams.get('transaction_id');
+    const status = urlParams.get('status');
+
+    if (redirect === 'true' && (txRef || transactionId)) {
+      setVerifying(true);
+      
+      // Use tx_ref from URL or transaction_id as fallback
+      const reference = txRef || `SUB-${transactionId}`;
+      
+      // Verify the payment
+      verifyPayment(reference);
+      
       // Clean up URL parameters
       window.history.replaceState({}, document.title, window.location.pathname);
     }
-  }, [toast]);
+  }, []);
+
+  const verifyPayment = async (txRef: string) => {
+    try {
+      const res = await apiRequest("GET", `${apiUrl}/api/subscriptions/verify-payment/${txRef}`);
+      
+      if (!res.ok) {
+        throw new Error('Payment verification failed');
+      }
+      
+      const data = await res.json();
+      
+      if (data.status === 'success') {
+        toast({
+          title: "Payment Successful! 🎉",
+          description: `Your ${data.plan?.name || 'subscription'} plan is now active!`,
+          variant: "default",
+        });
+        
+        // Refresh subscription and usage data
+        queryClient.invalidateQueries({ queryKey: ["currentSubscription"] });
+        queryClient.invalidateQueries({ queryKey: ["usage-widget"] });
+      } else if (data.status === 'pending') {
+        toast({
+          title: "Payment Processing",
+          description: "Your payment is being processed. Please check back in a few minutes.",
+          variant: "default",
+        });
+      } else {
+        toast({
+          title: "Payment Failed",
+          description: data.message || "Your payment could not be completed. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Payment verification error:', error);
+      toast({
+        title: "Verification Error",
+        description: "Could not verify your payment. Please contact support if you were charged.",
+        variant: "destructive",
+      });
+    } finally {
+      setVerifying(false);
+    }
+  };
 
   // Queries with proper error handling
   const { data: plans, isLoading: plansLoading, error: plansError } = useQuery<Plan[]>({
@@ -108,12 +152,18 @@ export default function Pricing() {
       });
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Failed to create payment');
+        throw new Error(errorData.detail || 'Failed to create payment');
       }
       return await res.json();
     },
     onSuccess: (data) => {
       if (data.checkout_url) {
+        // Store tx_ref in sessionStorage for verification (optional)
+        if (data.tx_ref) {
+          sessionStorage.setItem('pending_tx_ref', data.tx_ref);
+        }
+        
+        // Redirect to Flutterwave hosted payment page
         window.location.href = data.checkout_url;
       } else {
         throw new Error('No checkout URL received');
@@ -130,7 +180,17 @@ export default function Pricing() {
   });
 
   const handleUpgrade = async (planTier: string) => {
-    if (loading) return; // Prevent double clicks
+    if (loading || verifying) return; // Prevent double clicks
+    
+    // Free plan doesn't require payment
+    if (planTier === 'free') {
+      toast({
+        title: "Free Plan",
+        description: "You're already on the free plan!",
+        variant: "default",
+      });
+      return;
+    }
     
     setLoading(planTier);
     try {
@@ -201,6 +261,20 @@ export default function Pricing() {
           </p>
         </header>
 
+        {/* Verification Loading State */}
+        {verifying && (
+          <Card className="mb-8 max-w-8xl bg-blue-50 border-blue-200">
+            <CardContent className="py-6">
+              <div className="flex items-center justify-center space-x-3">
+                <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                <span className="text-blue-800 font-medium">
+                  Verifying your payment...
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Current Usage - always visible, auto-updating */}
         <Card className="mb-8 max-w-8xl">
           <CardHeader>
@@ -237,9 +311,13 @@ export default function Pricing() {
                   <p className="text-sm text-red-600 font-medium">
                     ⚠️ You have exceeded your monthly credit limit by {usage.current_usage - usage.limit} leads!
                   </p>
+                ) : usage.percentage_used >= 80 ? (
+                  <p className="text-sm text-yellow-600 font-medium">
+                    ⚠️ You're using {usage.percentage_used.toFixed(0)}% of your limit. Consider upgrading!
+                  </p>
                 ) : (
                   <p className="text-sm text-gray-600">
-                    {usage.remaining.toLocaleString()} leads remaining this month
+                    {usage.remaining.toLocaleString()} leads remaining this month ({usage.percentage_used.toFixed(0)}% used)
                   </p>
                 )
               ) : (
@@ -337,13 +415,13 @@ export default function Pricing() {
                           : ""
                       }`}
                       variant={isPopular ? "default" : "outline"}
-                      disabled={isCurrentPlan || isLoading || createPaymentMutation.isPending}
+                      disabled={isCurrentPlan || isLoading || createPaymentMutation.isPending || verifying}
                       onClick={() => handleUpgrade(plan.name.toLowerCase())}
                     >
                       {isLoading ? (
                         <>
                           <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Processing...
+                          Redirecting to payment...
                         </>
                       ) : isCurrentPlan ? (
                         "Current Plan"
@@ -438,6 +516,25 @@ export default function Pricing() {
             </CardContent>
           </Card>
         )}
+
+        {/* Payment Info Banner */}
+        <Card className="max-w-8xl mt-8 bg-blue-50 border-blue-200">
+          <CardContent className="py-6">
+            <div className="flex items-start space-x-3">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-blue-800">Secure Payment with Flutterwave</h3>
+                <p className="mt-1 text-sm text-blue-700">
+                  All payments are processed securely through Flutterwave. We accept cards, bank transfers, and mobile money.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </main>
     </div>
   );

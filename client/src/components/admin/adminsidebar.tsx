@@ -31,7 +31,7 @@ export function AdSidebar() {
   // ...existing code...
   const handleLogout = () => {
     localStorage.removeItem("access_token");
-    window.location.reload(); // force user state update
+    // window.location.reload(); // force user state update
     navigate("/auth");
   };
 
