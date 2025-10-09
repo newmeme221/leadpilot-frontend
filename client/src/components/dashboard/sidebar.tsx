@@ -56,6 +56,7 @@ export function Sidebar() {
     { href: "/email-campaigns", label: "Email Campaigns", icon: Mail },
     { href: "/activity", label: "Activity Logs", icon: History },
     { href: "/settings", label: "Settings", icon: Settings },
+    { href: "/pricing", label: "Pricing", icon: CreditCard },
   ];
 
   const usagePercentage = usage ? Math.min(100, (usage.current_usage / usage.limit) * 100) : 0;
