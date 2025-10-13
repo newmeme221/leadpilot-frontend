@@ -363,7 +363,7 @@ export default function EmailCampaigns() {
     }
   };
 
-  const filteredCampaigns = (campaigns || []).filter(c => {
+ const filteredCampaigns = (campaigns || []).filter(c => {
     const matchesSearch = c.name.toLowerCase().includes(searchTerm.toLowerCase()) || c.subject.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === "all" || c.status === statusFilter;
     return matchesSearch && matchesStatus;
