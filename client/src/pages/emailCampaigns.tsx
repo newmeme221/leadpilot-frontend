@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "../lib/queryClient";
 import { Loader2, Search, Filter, Download, Upload, Eye, Edit, Globe, Sparkles, Plus, Edit3, Trash2, Mail, Clock, Zap, Target, MessageCircle, Settings, CheckCircle, XCircle, AlertCircle, Activity, MousePointerClick, Users} from "lucide-react";
 
-const apiUrl = import.meta.env.VITE_API_URL;
+const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000";
  
 export default function EmailCampaigns() { 
   const [followUps, setFollowUps] = useState<{ subject: string; body: string; delay_days: number }[]>([]);
@@ -239,9 +239,36 @@ export default function EmailCampaigns() {
     });
   };
 
+   // Explicit queryFn avoids relying on queryKey string-join behavior and
+   // makes it easier to debug production vs dev URL mismatches.
    const { data: campaigns, isLoading } = useQuery<any[]>({
-    // use the environment API URL so production doesn't point to localhost
-    queryKey: [`${apiUrl}/api/email-campaigns`],
+    queryKey: ["email-campaigns"],
+    queryFn: async () => {
+      const token = localStorage.getItem("access_token");
+      const url = `${apiUrl}/api/email-campaigns`;
+      try {
+        // small debug log to surface the final URL in production
+        // remove or guard this if you don't want logs in production
+        // eslint-disable-next-line no-console
+        console.debug("Fetching email campaigns from:", url);
+        const res = await fetch(url, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!res.ok) {
+          // log response body for easier debugging when possible
+          let text = "";
+          try { text = await res.text(); } catch (e) { /* ignore */ }
+          // eslint-disable-next-line no-console
+          console.error(`Failed to fetch campaigns: ${res.status} ${res.statusText}`, text);
+          return [];
+        }
+        return await res.json();
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error("Error fetching campaigns:", err);
+        return [];
+      }
+    },
   });
 
    const { data: campaignStats, isLoading: statsLoading } = useQuery({
