@@ -240,7 +240,8 @@ export default function EmailCampaigns() {
   };
 
    const { data: campaigns, isLoading } = useQuery<any[]>({
-    queryKey: ["http://localhost:8000/api/email-campaigns"],
+    // use the environment API URL so production doesn't point to localhost
+    queryKey: [`${apiUrl}/api/email-campaigns`],
   });
 
    const { data: campaignStats, isLoading: statsLoading } = useQuery({

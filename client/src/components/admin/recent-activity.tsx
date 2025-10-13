@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
+const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export function RecentActivity() {
   const { data: activity, isLoading } = useQuery<Array<{id: string, status: string, message: string, timestamp: string, leadFirstName: string, leadLastName: string}>>({
-    queryKey: ["http://localhost:8000/api/activity"],
+    queryKey: [`${apiUrl}/api/activity`],
   });
 
   const getActivityIcon = (status: string) => {
