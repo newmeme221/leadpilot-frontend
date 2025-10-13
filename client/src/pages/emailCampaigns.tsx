@@ -117,7 +117,7 @@ export default function EmailCampaigns() {
     { id: "followup", label: "Follow-up Sequence", icon: Clock },
   ];
 
-  // Chart data state and API call
+  // Chart data state and API calls
   const { data: chartData, isLoading: chartLoading } = useQuery({
     queryKey: ["email-campaigns-performance"],
     queryFn: async () => {
